@@ -9,8 +9,8 @@
 #define TEST_PIN_D7         6  // internal LED
 #define DATA_PIN            12 // C2 (alt arduino: 3)
 #define MIDI_RX_PIN         2  // D2
-#define LIPO_PIN            40 // 40 // F2
-#define SECONDSFORVOLTAGE	5
+#define LIPO_PIN            2 // 2 = A2 // 40 // F2
+#define SECONDSFORVOLTAGE	1
 
 // initial matrix layout (to get led strip index by x/y)
 #define MATRIX_WIDTH        22
@@ -868,13 +868,13 @@ void loop() {
 				millisForVoltage = 0;
 				secondsForVoltage++;
 			}
-			/*
-				if (secondsForVoltage >= SECONDSFORVOLTAGE) {
-					secondsForVoltage = 0;
-					Serial.println(analogRead(LIPO_PIN)); // TODO JUST TESTING
-					voltageSmooth = 0.7 * voltageSmooth + 0.3 * map(analogRead(LIPO_PIN), 0, 1023, 0, 120);	// glaettungsfunktion um zittern zu vermeiden
-				}
-			*/
+			
+			if (secondsForVoltage >= SECONDSFORVOLTAGE) {
+				secondsForVoltage = 0;
+				Serial.println(analogRead(LIPO_PIN)); // TODO JUST TESTING
+				voltageSmooth = 0.7 * voltageSmooth + 0.3 * map(analogRead(LIPO_PIN), 0, 1023, 0, 120);	// glaettungsfunktion um zittern zu vermeiden
+			}
+			
 			if (debug) {
 				Serial.print(voltageSmooth);
 				Serial.print("\t");
@@ -888,11 +888,11 @@ void loop() {
 	else {	// if voltage is too low let LED 0 blink red
 		FastLED.clear();
 		FastLED.show();
-		delay(1000);
+		delay(500);
 		FastLED.setBrightness(BRIGTHNESS);
 		leds.m_LED[0] = CRGB::Red;
 		FastLED.show();
-		delay(1000);
+		delay(500);
 	}
 }
 
@@ -1428,3 +1428,50 @@ void TooClose() {
 //    }
 //}
 ////---- ENDE LED TESTROUTINE ----
+
+
+// analogen wert in C auslesen
+//static uint8_t aref = (1 << REFS0); // default to AREF = Vcc
+//
+//
+//void analogRef(uint8_t mode)
+//{
+//	aref = mode & 0xC0;
+//}
+//
+//
+//// Arduino compatible pin input
+//int16_t readAnalogPIN(uint8_t pin)
+//{
+//#if defined(__AVR_ATmega32U4__)
+//	static const uint8_t PROGMEM pin_to_mux[] = {
+//		0x00, 0x01, 0x04, 0x05, 0x06, 0x07,
+//		0x25, 0x24, 0x23, 0x22, 0x21, 0x20 };
+//	if (pin >= 12) return 0;
+//	return adc_read(pgm_read_byte(pin_to_mux + pin));
+//#elif defined(__AVR_AT90USB646__) || defined(__AVR_AT90USB1286__)
+//	if (pin >= 8) return 0;
+//	return adc_read(pin);
+//#else
+//	return 0;
+//#endif
+//}
+//
+//// Mux input
+//int16_t adc_read(uint8_t mux)
+//{
+//#if defined(__AVR_AT90USB162__)
+//	return 0;
+//#else
+//	uint8_t low;
+//
+//	ADCSRA = (1 << ADEN) | ADC_PRESCALER;		// enable ADC
+//	ADCSRB = (1 << ADHSM) | (mux & 0x20);		// high speed mode
+//	ADMUX = aref | (mux & 0x1F);			// configure mux input
+//	ADCSRA = (1 << ADEN) | ADC_PRESCALER | (1 << ADSC);	// start the conversion
+//	while (ADCSRA & (1 << ADSC));			// wait for result
+//	low = ADCL;							// must read LSB first
+//	return (ADCH << 8) | low;			// must read MSB only once!
+//#endif
+//}
+
