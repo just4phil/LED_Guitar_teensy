@@ -762,33 +762,28 @@ void switchToSong(byte song) {
 void setupInterrupt() {
 	TCCR3A	= 0;
 	TCCR3B	= 0x0B;      // WGM32 (CTC) , Prescaler: // 0x0C = 256 // 0x0B = 64
-	OCR3A	= 12500;       // 16M/256/31250 = 0,5 seconds
+	OCR3A	= 248;       // 16M/256/248 = 1 ms
 	TIMSK3	= 0x02;      // enable compare interrupt
 }
 
+#define INCREMENT	1
+
 ISR(TIMER3_COMPA_vect) {
-	millisSelf = millisSelf + 50;
-	millisForVoltage = millisForVoltage + 50;
-	millisForLED = millisForLED + 50;
-	millisForFastLED = millisForFastLED + 50;
+	
+	millisSelf = millisSelf + INCREMENT;
+	millisForVoltage = millisForVoltage + INCREMENT;
+	millisForLED = millisForLED + INCREMENT;
+	millisForFastLED = millisForFastLED + INCREMENT;
 
-	//if (millisForFastLED >= 10) {
-	//	millisForFastLED = 0;
-	//	flag_processFastLED = true;	// process FastLED-loops only every 10 ms
-	//}
-
-
-	if (!flag_processFastLED) {
-		flag_processFastLED = true;
-		PORTD ^= 0x40;	// toggle LED
+	if (millisForFastLED >= 10) {
+		millisForFastLED = 0;
+		flag_processFastLED = true;	// process FastLED-loops only every 10 ms
 	}
 
-	//flag_processFastLED = true;	// process FastLED-loops only every 10 ms
-
-	//if (millisForLED >= 500) {
-	//	millisForLED = 0;
-	//	PORTD ^= 0x40;	// toggle LED
-	//}
+	if (millisForLED >= 500) {
+		millisForLED = 0;
+		PORTD ^= 0x40;	// toggle LED
+	}
 
 	if (millisSelf >= nextChangeMillis) {
 		prog = nextSongPart;
