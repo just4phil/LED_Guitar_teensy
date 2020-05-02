@@ -3,7 +3,6 @@
 #include <FastLED.h>		// https://github.com/FastLED/FastLED 
 #include <LEDMatrix.h>      // https://github.com/Jorgen-VikingGod/LEDMatrix
 #include <FastLED_GFX.h>	// https://github.com/Jorgen-VikingGod/FastLED-GFX
-//#include <TimerOne.h>
 
 // Change the next defines to match your matrix type and size
 #define TEST_PIN_D7         6  // internal LED
@@ -22,6 +21,8 @@
 #define CHIPSET             WS2812B
 #define anz_LEDs			278
 #define BRIGTHNESS			5
+
+int progWhiteGoingBright_brightness = BRIGTHNESS;
 
 // paths for progOutlinePath
 const static int outlinePath1[] = { 30, 31, 29, 28, 27, 26, 36, 42, 43, 44, 45, 46, 25, 9, 8, 0, 1, 2, 4, 3, 16, 17, 56, 57, 91, 92, 101, 102, 111, 112, 121, 122, 162, 193, 229, 230, 262, 263, 274, 275, 276, 277, 270, 269, 254, 239, 240, 241, 242, 243, 244, 253, 252, 251, 250, 249, 211, 210, 176, 177, 178, 179, 175, 161, 152, 151, 142, 141, 132, 131, 77, 72, 73, 74, 75, 76, 37, 31 };
@@ -59,8 +60,6 @@ byte secondsForVoltage = 0;
 volatile unsigned int millisForVoltage = 0;
 volatile unsigned int millisSelf = 0;		// achtung!! -> kann nur bis 65.536 zaehlen!!
 volatile unsigned int nextChangeMillis = 100000;		// start value = 10 sec
-volatile int millisForLED = 0;
-volatile int millisForFastLED = 0;
 volatile boolean flag_processFastLED = false;
 volatile boolean nextChangeMillisAlreadyCalculated = false;
 volatile byte nextSongPart = 0;
@@ -70,6 +69,9 @@ volatile byte prog = 0;
 unsigned int lastLEDchange = millis();
 int ledState = LOW;             // ledState used to set the LED --TODO: nur test mit interner LED
 
+int zaehler = 0;
+boolean scannerGoesBack = false;
+int stage = 0;
 
 
 //=====================================================================
@@ -108,7 +110,6 @@ byte b = getRandomColorValue();
 // leds werden zufällig mit der selben farbe eingeschaltet und einige wenige zufällig ausgeschaltet
 // alle x sekunden wird die eine der drei farbkomponenten zufällig geändert
 int progBlingBlingColoring_rounds = 0;
-
 void progBlingBlingColoring(unsigned int durationMillis, byte nextPart) {
 
 	//--- standard-part um dauer und naechstes programm zu speichern ----
@@ -204,6 +205,33 @@ void progFullColors(unsigned int durationMillis, byte nextPart, unsigned int del
 	}
 }
 
+// only for ampere testing
+void progWhiteGoingBright(unsigned int durationMillis, byte nextPart, unsigned int del) {
+
+	//--- standard-part um dauer und naechstes programm zu speichern ----
+	if (!nextChangeMillisAlreadyCalculated) {
+		FastLED.clear(true);
+		// workaround: die eigentlichen millis werden korrigiert auf die faktische dauer
+		//nextChangeMillis = round((float)durationMillis / (float)1.0f);	// TODO: diesen wert eurieren und anpassen!!
+		nextChangeMillis = durationMillis;
+		nextSongPart = nextPart;
+		nextChangeMillisAlreadyCalculated = true;
+		//		Serial.println(nextChangeMillis);
+	}
+	//---------------------------------------------------------------------
+
+	if (millis() - lastTimestamp > del) {
+
+		progWhiteGoingBright_brightness = progWhiteGoingBright_brightness + 5;
+		if (progWhiteGoingBright_brightness > 255) progWhiteGoingBright_brightness = BRIGTHNESS;
+
+		FastLED.setBrightness(progWhiteGoingBright_brightness);
+
+		FastLED.showColor(CRGB(255, 255, 255));
+		lastTimestamp = millis();	// restart timer
+	}
+}
+
 void progFullColorsWithFading(unsigned int durationMillis, byte nextPart) {
 
 	//--- standard-part um dauer und naechstes programm zu speichern ----
@@ -292,18 +320,25 @@ void progMatrixScanner(unsigned int durationMillis, byte nextPart) {
 	}
 	//---------------------------------------------------------------------
 
-	for (int i = -3; i < 23; i++) {
-		leds.DrawFilledRectangle(i - 1, 0, i + 2, MATRIX_HEIGHT, CRGB::Red);
-		leds.DrawFilledRectangle(i, 0, i + 1, MATRIX_HEIGHT, CRGB::White);
-		leds.DrawFilledRectangle(i - 5, 0, i - 2, MATRIX_HEIGHT, CRGB::Black);
+	if (!scannerGoesBack) {
+
+		zaehler++;
+		if (zaehler >= 23) scannerGoesBack = true;
+
+		//for (int i = -3; i < 23; i++) {
+		leds.DrawFilledRectangle(zaehler - 1, 0, zaehler + 2, MATRIX_HEIGHT, CRGB::Red);
+		leds.DrawFilledRectangle(zaehler, 0, zaehler + 1, MATRIX_HEIGHT, CRGB::White);
+		leds.DrawFilledRectangle(zaehler - 5, 0, zaehler - 2, MATRIX_HEIGHT, CRGB::Black);
 		FastLED.show();
-		//		delay((10 +i));
 	}
-	for (int i = 20; i > -3; i--) {
-		leds.DrawFilledRectangle(i, 0, i + 2, MATRIX_HEIGHT, CRGB::Red);
-		leds.DrawFilledRectangle(i + 2, 0, i + 4, MATRIX_HEIGHT, CRGB::Black);
+	else {
+		zaehler--;
+		if (zaehler <= -3) scannerGoesBack = false;
+
+		//for (int i = 20; i > -3; i--) {
+		leds.DrawFilledRectangle(zaehler, 0, zaehler + 2, MATRIX_HEIGHT, CRGB::Red);
+		leds.DrawFilledRectangle(zaehler + 2, 0, zaehler + 4, MATRIX_HEIGHT, CRGB::Black);
 		FastLED.show();
-		//		delay((10 +i));
 	}
 }
 
@@ -331,22 +366,23 @@ void progStern(unsigned int durationMillis, byte nextPart) {
 	}
 	//---------------------------------------------------------------------
 
-	for (int i = 0; i < 10; i++) {
+	//for (int i = 0; i < 10; i++) {
 
-		FastLED.clear();
+	zaehler++;
+	if (zaehler >= 10) zaehler = 0;
 
-		leds.DrawLine(center_x - i, 0, center_x + i, 22, CRGB(r, g, b)); 			// 10, 0, 10, 22
-		leds.DrawLine(center_x - i + 1, 0, center_x + i + 1, 22, CRGB(red2, green2, blue2));  	// 11, 0, 11, 22
-		leds.DrawLine(0, i + 1, 21, 22 - i, CRGB(r, g, b));
-		leds.DrawLine(0, i, 21, 21 - i, CRGB(red2, green2, blue2));
-		leds.DrawLine(0, center_y + i + 1, 21, center_y - i + 1, CRGB(r, g, b));
-		leds.DrawLine(0, center_y + i, 21, center_y - i, CRGB(red2, green2, blue2));
-		leds.DrawLine(i, 22, 22 - i, 0, CRGB(r, g, b));
-		leds.DrawLine(i - 1, 22, 21 - i, 0, CRGB(red2, green2, blue2));
+	FastLED.clear();
 
-		FastLED.show();
-		//		delay(10);
-	}
+	leds.DrawLine(center_x - zaehler, 0, center_x + zaehler, 22, CRGB(r, g, b));
+	leds.DrawLine(center_x - zaehler + 1, 0, center_x + zaehler + 1, 22, CRGB(red2, green2, blue2));
+	leds.DrawLine(0, zaehler + 1, 21, 22 - zaehler, CRGB(r, g, b));
+	leds.DrawLine(0, zaehler, 21, 21 - zaehler, CRGB(red2, green2, blue2));
+	leds.DrawLine(0, center_y + zaehler + 1, 21, center_y - zaehler + 1, CRGB(r, g, b));
+	leds.DrawLine(0, center_y + zaehler, 21, center_y - zaehler, CRGB(red2, green2, blue2));
+	leds.DrawLine(zaehler, 22, 22 - zaehler, 0, CRGB(r, g, b));
+	leds.DrawLine(zaehler - 1, 22, 21 - zaehler, 0, CRGB(red2, green2, blue2));
+
+	FastLED.show();
 }
 
 void progBlack(unsigned int durationMillis, byte nextPart) {
@@ -440,36 +476,78 @@ void progMovingLines(unsigned int durationMillis, byte nextPart) {
 	}
 	//---------------------------------------------------------------------
 
-	for (int i = 0; i < 26; i++) {
-		FastLED.clear();
-		leds.DrawLine(i, 0, 25 - i, 22, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
-		FastLED.show();
+	FastLED.clear();
+
+	switch (stage) {
+
+	case 0:
+		zaehler++;
+		if (zaehler >= 26) {
+			stage = 1;
+			zaehler = 0;
+			break;
+		}
+		//for (int i = 0; i < 26; i++) {
+		leds.DrawLine(zaehler, 0, 25 - zaehler, 22, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
+		break;
+	
+	case 1:
+		zaehler++;
+		if (zaehler >= 12) {
+			stage = 2;
+			zaehler = 12;
+			break;
+		}
+		//for (int i = 0; i < 12; i++) {
+		leds.DrawLine(25, zaehler, 0, 22 - zaehler, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
+		break;
+
+	case 2:
+		zaehler--;
+		if (zaehler <= 0) {
+			stage = 3;
+			zaehler = 25;
+			break;
+		}
+		//for (int i = 12; i > -1; i--) {
+		leds.DrawLine(25, zaehler, 0, 22 - zaehler, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
+		break;
+
+	case 3:
+		zaehler--;
+		if (zaehler <= 0) {
+			stage = 4;
+			zaehler = 0;
+			break;
+		}
+		//for (int i = 25; i > -1; i--) {
+		leds.DrawLine(zaehler, 0, 25 - zaehler, 22, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
+		break;
+
+	case 4:
+		zaehler++;
+		if (zaehler >= 11) {
+			stage = 5;
+			zaehler = 10;
+			break;
+		}
+		//for (int i = 0; i < 11; i++) {
+		leds.DrawLine(0, zaehler, 25, 22 - zaehler, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
+		break;
+
+	case 5:
+		zaehler--;
+		if (zaehler <= 0) {
+			stage = 0;
+			zaehler = 0;
+			break;
+		}
+		//for (int i = 10; i > -1; i--) {
+		leds.DrawLine(0, zaehler, 25, 22 - zaehler, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
+		break;
 	}
-	for (int i = 0; i < 12; i++) {
-		FastLED.clear();
-		leds.DrawLine(25, i, 0, 22 - i, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
-		FastLED.show();
-	}
-	for (int i = 12; i > -1; i--) {
-		FastLED.clear();
-		leds.DrawLine(25, i, 0, 22 - i, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
-		FastLED.show();
-	}
-	for (int i = 25; i > -1; i--) {
-		FastLED.clear();
-		leds.DrawLine(i, 0, 25 - i, 22, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
-		FastLED.show();
-	}
-	for (int i = 0; i < 11; i++) {
-		FastLED.clear();
-		leds.DrawLine(0, i, 25, 22 - i, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
-		FastLED.show();
-	}
-	for (int i = 10; i > -1; i--) {
-		FastLED.clear();
-		leds.DrawLine(0, i, 25, 22 - i, CRGB(getRandomColorValue(), getRandomColorValue(), getRandomColorValue()));
-		FastLED.show();
-	}
+
+	FastLED.show();
 }
 
 void progOutline(unsigned int durationMillis, byte nextPart) {
@@ -487,11 +565,13 @@ void progOutline(unsigned int durationMillis, byte nextPart) {
 	//---------------------------------------------------------------------
 
 	int anz;
-	//	const int dauer = 60;
+	FastLED.clear();
 
-	for (int y = 0; y < 9; y++) {
-		FastLED.clear();
-		switch (y) {
+	if (!scannerGoesBack) {
+
+		//for (int y = 0; y < 9; y++) {
+
+		switch (zaehler) {
 		case 0:
 			anz = (sizeof(outlinePath1) / sizeof(outlinePath1[0]));
 			for (int i = 0; i < anz; i++) {
@@ -557,12 +637,16 @@ void progOutline(unsigned int durationMillis, byte nextPart) {
 			break;
 		}
 		FastLED.show();
-		//		delay(dauer);
+
+		zaehler++;
+		if (zaehler >= 9) scannerGoesBack = true;
 	}
 
-	for (int y = 8; y > -1; y--) {
-		FastLED.clear();
-		switch (y) {
+	else {
+	
+	//for (int y = 8; y > -1; y--) {
+		
+		switch (zaehler) {
 		case 0:
 			anz = (sizeof(outlinePath1) / sizeof(outlinePath1[0]));
 			for (int i = 0; i < anz; i++) {
@@ -628,7 +712,9 @@ void progOutline(unsigned int durationMillis, byte nextPart) {
 			break;
 		}
 		FastLED.show();
-		//		delay(dauer);
+
+		zaehler--;
+		if (zaehler <= 0) scannerGoesBack = false;
 	}
 }
 
@@ -725,13 +811,14 @@ void switchToSong(byte song) {
 
 	millisSelf = 0;
 	lastTimestamp = millis();
-	//	timer_start = millis();
 
 		//--- initializeValues ---
 	progBlingBlingColoring_rounds = 0;
 	progCLED_hue = 0;
 	progCLED_counter = 0;
 	progStern_initialize();
+
+	zaehler = 0;	// globalen zaehler auf null
 
 	//--- start song ----
 	songID = song;
@@ -761,33 +848,25 @@ void switchToSong(byte song) {
 
 void setupInterrupt() {
 	TCCR3A	= 0;
-	TCCR3B	= 0x0B;      // WGM32 (CTC) , Prescaler: // 0x0C = 256 // 0x0B = 64
-	OCR3A	= 248;       // 16M/256/248 = 1 ms
+	TCCR3B	= 0x0B;      // WGM32 (CTC), Prescaler: // 0x0C = 256 // 0x0B = 64
+	OCR3A	= 6250;      // 16M/64(prescaler) * 0,025 sec (=25 ms) = 6250
 	TIMSK3	= 0x02;      // enable compare interrupt
 }
 
-#define INCREMENT	1
+#define INCREMENT	25	// process FastLED-loops only every 25 ms (fast-led takes approx. 18 ms!!)
 
 ISR(TIMER3_COMPA_vect) {
 	
 	millisSelf = millisSelf + INCREMENT;
 	millisForVoltage = millisForVoltage + INCREMENT;
-	millisForLED = millisForLED + INCREMENT;
-	millisForFastLED = millisForFastLED + INCREMENT;
-
-	if (millisForFastLED >= 10) {
-		millisForFastLED = 0;
-		flag_processFastLED = true;	// process FastLED-loops only every 10 ms
-	}
-
-	if (millisForLED >= 500) {
-		millisForLED = 0;
-		PORTD ^= 0x40;	// toggle LED
-	}
+	
+	flag_processFastLED = true;	// process FastLED-loops only every 25 ms (fast-led takes approx. 18 ms!!)
+	PORTD ^= 0x40;				// toggle LED every 25 ms
 
 	if (millisSelf >= nextChangeMillis) {
 		prog = nextSongPart;
 		millisSelf = 0;
+		zaehler = 0;	// globalen zaehler auf null
 		nextChangeMillisAlreadyCalculated = false; // bool wieder fuer naechstes programm freigeben
 	}
 }
@@ -807,6 +886,28 @@ ISR(TIMER3_COMPA_vect) {
 
 //========================================================
 
+// zum auslesen des ADC
+int16_t adc_read(uint8_t mux)
+{
+	#define ADC_REF_POWER     (1<<REFS0)
+	#define ADC_REF_INTERNAL  ((1<<REFS1) | (1<<REFS0))
+	#define ADC_REF_EXTERNAL  (0)
+
+	// These prescaler values are for high speed mode, ADHSM = 1
+	#define ADC_PRESCALER ((1<<ADPS2) | (1<<ADPS1))		// gilt fuer: F_CPU == 16000000L
+
+	static uint8_t aref = (1 << REFS0); // default to AREF = Vcc
+	uint8_t low;
+
+	ADCSRA = (1 << ADEN) | ADC_PRESCALER;             // enable ADC
+	ADCSRB = (1 << ADHSM) | (mux & 0x20);             // high speed mode
+	ADMUX = aref | (mux & 0x1F);						// configure mux input
+	ADCSRA = (1 << ADEN) | ADC_PRESCALER | (1 << ADSC); // start the conversion
+	while (ADCSRA & (1 << ADSC));                    // wait for result
+	low = ADCL;                                     // must read LSB first
+	return (ADCH << 8) | low;                       // must read MSB only once!
+}
+
 void setup() {
 	Serial.begin(31250);	// for midi
 
@@ -815,7 +916,13 @@ void setup() {
 	//---------------------
 
 	//---- check voltage @ PIN A2 as lipo safer ------
-	pinMode(LIPO_PIN, INPUT); //---- check voltage @ PIN F2 as lipo safer ------
+	//PINF &= ~0x02;		// ? set PIN as input
+	//DIDR0 = 0x04;		// ? Pin F2 has analog signal
+	//ADCSRA = 0xC3;		// enable ADC free running mode
+	//ADCSRB = 0x80;		// high speed mode
+	//ADMUX = 0xC2;		// configure mux input
+
+	//pinMode(LIPO_PIN, INPUT); //---- check voltage @ PIN F2 as lipo safer ------
 	voltageSmooth = map(analogRead(LIPO_PIN), 0, 1023, 0, 120);	// zu beginn mit startwert initialisieren, damit nicht mit NULL gemittelt wird
 
 	// initial LEDs
@@ -832,8 +939,30 @@ void setup() {
 //==============================================
 
 void loop() {
-
 	boolean debug = false;
+	
+	//uint8_t low;
+	//unsigned int analog;
+
+
+	//==================================================
+	// Timer auslesen unabhängig von interrupt
+	/* 
+	unsigned int timer64us;
+	unsigned int diff64us;
+
+	 diff64us = TCNT3 - timer64us;
+
+	if (timer64us > 60000) {
+		Serial.println(diff64us);
+		TCNT3 = 0;
+	}
+
+	timer64us = TCNT3;
+	*/
+	//==================================================
+	
+
 
 	//---- start loop only when voltage is high enough
 	if (voltageSmooth > 102) {	// only fire LEDs if voltage is > 10.2V
@@ -863,15 +992,26 @@ void loop() {
 
 			checkIncomingMIDI();
 
-			//---- check voltage as lipo safer ------
-			if (millisForVoltage >= 1000) { // TODO: zurueck auf 1.000
+			//---- count seconds for voltage lipo safer ------
+			if (millisForVoltage >= 1000) { 
 				millisForVoltage = 0;
 				secondsForVoltage++;
+				//PORTD ^= 0x40;				// toggle LED every 1 sec
 			}
 			
+			//---- check voltage as lipo safer ------
 			if (secondsForVoltage >= SECONDSFORVOLTAGE) {
 				secondsForVoltage = 0;
-				Serial.println(analogRead(LIPO_PIN)); // TODO JUST TESTING
+
+				//--- analog input auslesen für voltage lipo safer
+				//low = ADCL;									// must read LSB first
+				//analog = (ADCH << 8) | low;					// must read MSB only once!
+				//Serial.println(analog);					// TODO JUST TESTING
+				
+				Serial.println(adc_read(3));
+
+				//Serial.println(analogRead(A2));
+				//Serial.println(analogRead(LIPO_PIN)); // TODO JUST TESTING
 				voltageSmooth = 0.7 * voltageSmooth + 0.3 * map(analogRead(LIPO_PIN), 0, 1023, 0, 120);	// glaettungsfunktion um zittern zu vermeiden
 			}
 			
@@ -893,7 +1033,9 @@ void loop() {
 		leds.m_LED[0] = CRGB::Red;
 		FastLED.show();
 		delay(500);
-	}
+	}   
+
+
 }
 
 //---- scheint zu gehen ----
@@ -1022,58 +1164,63 @@ void checkIncomingMIDI() {
 //}
 ////==============================================
 
-void defaultLoop() {
+void defaultLoop()  {
 	FastLED.setBrightness(BRIGTHNESS); // zur sicherheit in jedem loop neu auf default setzen. ggf. kann einzelner fx das überschreiben
-//	long duration_since_start = millis() - timer_start;
 
 	switch (prog) {
 
 	case 0:
-		progBlingBlingColoring(10000, 1);//3    59,5hz
+		progOutline(500000, 10);
+		//progMovingLines(50000, 11);
+		//progWhiteGoingBright(1000000000, 1, 2000); // only for ampere testing
+		//progFullColors(3000047, 3, 10000);
+		//progMatrixScanner(50000, 5);
+
+		//progBlingBlingColoring(5000, 1);//3    59,5hz
 		break;
 
 	case 1:
-		progStern(10000, 2);
+		progStern(5000, 2);
 		break;
 
 	case 2:	// random farbiger strobo
-		progStrobo(10000, 3, 50, getRandomColorValue(), getRandomColorValue(), getRandomColorValue());
+		progStrobo(5000, 3, 50, getRandomColorValue(), getRandomColorValue(), getRandomColorValue());
 		break;
 
 	case 3:
-		progCLED(10000, 4);	// matrix colors
+		progCLED(5000, 4);	// matrix colors
 		break;
 
 	case 4:
-		progMatrixScanner(10000, 5);
+		progMatrixScanner(5000, 5);
 		break;
 
 	case 5:
-		progFullColors(10000, 6, 2000);
+		progFullColors(5000, 6, 2000);
 		break;
 
 	case 6:
-		progStrobo(10000, 7, 50, 255, 255, 255);	// Weisser strobo
+		progStrobo(5000, 7, 50, 255, 255, 255);	// Weisser strobo
 		break;
 
 	case 7:
-		progCircles(10000, 8, 1000);
+		progCircles(5000, 8, 1000);
 		break;
 
 	case 8:
-		progFastBlingBling(10000, 9); //20s -> 3:13
+		progFastBlingBling(5000, 9); //20s -> 3:13
 		break;
 
 	case 9:
-		progOutline(10000, 10);
+		progOutline(5000, 10);
 		break;
 
 	case 10:
-		progMovingLines(10000, 11);
+		progMovingLines(5000, 11);
 		break;
 
 	case 11:
-		progRandomLines(10000, 100, 500);
+		progRandomLines(5000, 100, 500);
 		break;
 
 	case 100:
